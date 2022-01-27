@@ -1,1 +1,6 @@
 .mypy_cache
+.pytest_cache
+__pycache__
+*.log
+
+.env

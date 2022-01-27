@@ -1,3 +1,4 @@
+import os
 import secrets
 from pathlib import Path
 from typing import Dict
@@ -7,19 +8,55 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-ADDON_PATH = Path(__file__, "../lib", "metamask-10.8.1-an+fx").resolve()
+ADDON_PATH = Path(__file__, "../../lib", "metamask-10.8.1-an+fx.xpi").resolve()
 
 
 class Context:
     """A context object for holding common objects."""
 
-    def __init__(self, driver: WebDriver, mnemonic: str, timeout: int):
+    def __init__(self, driver: WebDriver, mnemonic: str = None, timeout: int = 60):
+        self.mnemonic = mnemonic or os.environ["WALLET_MNEMONIC"]
+
+        if not self.mnemonic:
+            raise ValueError(
+                "Missing mnemonic. Provide one via the WALLET_MNEMONIC environment "
+                "variable or directly to the Context constructor."
+            )
+
         self.driver = driver
         self.wait = WebDriverWait(driver, timeout)
         self.original_window = driver.current_window_handle
-        self.mnemonic = mnemonic
+        self.driver.maximize_window()
+        self._install_metamask()
 
-        driver.maximize_window()
+    def _install_metamask(self):
+        """
+        Installs MetaMask into the current browser context, and initializes the wallet
+        using the given mnemonic. Passwords are cryptoraphically-secure generated tokens.
+        """
+        # install the addon
+        self.driver.install_addon(str(ADDON_PATH), temporary=True)
+        self.switch_to_metamask()
+
+        # navigate through the onboarding pages
+        self.wait_until_present(By.TAG_NAME, "button").click()
+        self.wait_until_present(By.TAG_NAME, "button").click()
+        self.wait_until_present(By.TAG_NAME, "button").click()
+
+        # fill out the account recovery and setup the wallet
+        fields = self.wait_until_present(By.TAG_NAME, "input", many=True)
+        password = secrets.token_hex()
+        fields[0].send_keys(self.mnemonic)
+        del self.mnemonic
+        fields[1].send_keys(password)
+        fields[2].send_keys(password)
+        self.wait_until_present(By.CLASS_NAME, "first-time-flow__terms").click()
+        self.wait_until_present(By.TAG_NAME, "button").click()
+        self.wait_until_present(By.CLASS_NAME, "end-of-flow__emoji")
+        self.wait_until_present(By.TAG_NAME, "button").click()
+
+        # switch to the original tab, closing the current
+        self.switch_to_original(close=True)
 
     def wait_until_present(self, method: By, selector: str, many=False):
         """
@@ -34,7 +71,7 @@ class Context:
     def switch_to_metamask(self):
         """Switches the driver context to the new window (will be MetaMask)."""
         self.wait.until(EC.number_of_windows_to_be(2))
-        for window_handle in driver.window_handles:
+        for window_handle in self.driver.window_handles:
             if window_handle != self.original_window:
                 self.driver.switch_to.window(window_handle)
                 break
@@ -49,35 +86,11 @@ class Context:
 
         self.driver.switch_to.window(self.original_window)
 
+    def __enter__(self):
+        return self
 
-def _install_metamask(context: Context):
-    """
-    Installs MetaMask into the current browser context, and initializes the wallet
-    using the given mnemonic. Passwords are cryptoraphically-secure generated tokens.
-    """
-    # install the addon
-    context.driver.install_addon(ADDON_PATH, temporary=True)
-    context.switch_to_metamask()
-
-    # navigate through the onboarding pages
-    context.wait_until_present(By.TAG_NAME, "button").click()
-    context.wait_until_present(By.TAG_NAME, "button").click()
-    context.wait_until_present(By.TAG_NAME, "button").click()
-
-    # fill out the account recovery and setup the wallet
-    fields = context.wait_until_present(By.TAG_NAME, "input", many=True)
-    password = secrets.token_hex()
-    fields[0].send_keys(context.mnemonic)
-    del context.mnemonic
-    fields[1].send_keys(password)
-    fields[2].send_keys(password)
-    context.wait_until_present(By.CLASS_NAME, "first-time-flow__terms").click()
-    context.wait_until_present(By.TAG_NAME, "button").click()
-    context.wait_until_present(By.CLASS_NAME, "end-of-flow__emoji")
-    context.wait_until_present(By.TAG_NAME, "button").click()
-
-    # switch to the original tab, closing the current
-    context.switch_to_original(close=True)
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.driver.quit()
 
 
 def link_metamask(context: Context, num_agreements: int):

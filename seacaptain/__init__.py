@@ -1,1 +1,1 @@
-from .captain import OpenSeaContext, upload_nfts  # noqa
+from .captain import OpenSeaContext, link_metamask, upload_nfts  # noqa

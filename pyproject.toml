@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "seacaptain"
-version = "0.1.0"
+version = "0.1.1"
 description = "A set of utilities for batch uploading and listing NFTs to the OpenSea platform."
 authors = ["Elias Gabriel <egabriel@olin.edu>"]
 license = "BSD-3-Clause"

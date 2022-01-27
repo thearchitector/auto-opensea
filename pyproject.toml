@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "auto-opensea"
+name = "seacaptain"
 version = "0.1.0"
 description = "A set of utilities for batch uploading and listing NFTs to the OpenSea platform."
 authors = ["Elias Gabriel <egabriel@olin.edu>"]
